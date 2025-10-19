@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+.cache/
+*.ipynb_checkpoints/
+data/
+artifacts/
+*.pt
+*.tar.gz
