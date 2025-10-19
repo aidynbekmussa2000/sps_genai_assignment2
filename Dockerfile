@@ -1,33 +1,37 @@
 # Use a lightweight Python base image
 FROM python:3.11-slim
 
-# Install required system libraries (needed for image processing)
+# OS deps (Pillow etc.) + curl for HEALTHCHECK
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg62-turbo-dev zlib1g-dev curl \
-    && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root user (for safety)
-RUN useradd -m appuser
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
-# Set the working directory
+# Non-root user
+RUN useradd -m -s /bin/bash appuser
+
 WORKDIR /app
 
-# Copy dependency file and install Python packages
+# Install Python deps first (cache-friendly)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of your project into the image
+# Copy code
 COPY app ./app
-COPY artifacts ./artifacts
+
+# Ensure artifacts dir exists even if not in repo
+RUN mkdir -p /app/artifacts && chown -R appuser:appuser /app
 
 # Expose FastAPI port
 EXPOSE 8000
 
-# Health check endpoint (Docker will use this to confirm the app is running)
+# Health check
 HEALTHCHECK --interval=30s --timeout=3s CMD curl --fail http://localhost:8000/health || exit 1
 
-# Switch to non-root user
+# Drop privileges
 USER appuser
 
-# Run FastAPI app using uvicorn
+# Start API
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
